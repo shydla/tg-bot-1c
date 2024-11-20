@@ -279,17 +279,20 @@ async def process_backup_callback(callback: types.CallbackQuery, db=None):
     )
 
     try:
-        # Удаляем сообщение со списком баз
         await callback.message.delete()
-        
-        # Отправляем сообщение о начале процесса
-        status_message = await callback.message.answer(f"🔄 Начата выгрузка базы {db_name}...")
+        status_message = await callback.message.answer(
+            f"🔄 Начата выгрузка базы {db_name}...\n"
+            f"⏳ Пожалуйста, подождите..."
+        )
         
         cloud_link = await ssh.create_database_backup(db_name)
         if cloud_link:
             await status_message.edit_text(
-                f"✅ Резервная копия базы {db_name} создана и загружена в облако!\n"
-                f"Ссылка для скачивания: {cloud_link}"
+                f"✅ Резервная копия базы {db_name} успешно создана!\n\n"
+                f"📥 Ссылка на Яндекс.Диск:\n{cloud_link}\n\n"
+                f"ℹ️ Для скачивания:\n"
+                f"1. Перейдите по ссылке\n"
+                f"2. Нажмите кнопку 'Скачать' на странице Яндекс.Диска"
             )
         else:
             await status_message.edit_text(

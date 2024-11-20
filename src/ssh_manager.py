@@ -163,8 +163,8 @@ class SSHManager:
                 if check_result.stdout.strip() == "exists":
                     await self._conn.run(f'rm -rf "{self.backup_dir}/data"')
                     
-                    # Загружаем файл в облако и получаем ссылку
-                    cloud_link = await self.upload_to_cloud(backup_path)
+                    # Передаем имя базы в метод upload_to_cloud
+                    cloud_link = await self.upload_to_cloud(backup_path, db_name)
                     return cloud_link
 
             return None
@@ -189,26 +189,49 @@ class SSHManager:
             self._conn.close()
             await self._conn.wait_closed()
 
-    async def upload_to_cloud(self, file_path: str) -> Optional[str]:
+    async def upload_to_cloud(self, file_path: str, db_name: str) -> Optional[str]:
         """Загружает файл в облако и возвращает ссылку для скачивания"""
         try:
+            # Формируем путь в облаке: remote:path/database_name/
+            cloud_db_path = f"{self.rclone_remote}:{self.rclone_path}/{db_name}"
+            
+            # Очищаем папку базы в облаке
+            clear_command = f'rclone purge "{cloud_db_path}"'
+            await self._conn.run(clear_command)
+            
+            # Создаем папку заново
+            mkdir_command = f'rclone mkdir "{cloud_db_path}"'
+            await self._conn.run(mkdir_command)
+            
             # Получаем имя файла из полного пути
             file_name = file_path.split('/')[-1]
-            cloud_path = f"{self.rclone_remote}:{self.rclone_path}/{file_name}"
+            cloud_file_path = f"{cloud_db_path}/{file_name}"
             
             # Загружаем файл в облако
-            command = f'rclone copy "{file_path}" "{cloud_path}"'
-            result = await self._conn.run(command)
+            copy_command = f'rclone copy "{file_path}" "{cloud_db_path}"'
+            result = await self._conn.run(copy_command)
             
             if result.exit_status == 0:
-                # Получаем публичную ссылку
-                link_command = f'rclone link "{cloud_path}"'
-                link_result = await self._conn.run(link_command)
+                # Публикуем файл и получаем ссылку
+                publish_command = f'rclone link "{cloud_file_path}"'
+                publish_result = await self._conn.run(publish_command)
                 
-                if link_result.exit_status == 0:
+                if publish_result.exit_status == 0:
                     # Удаляем локальный файл
                     await self._conn.run(f'rm -f "{file_path}"')
-                    return link_result.stdout.strip()
+                    
+                    # Получаем ссылку и преобразуем её в формат для скачивания
+                    share_link = publish_result.stdout.strip()
+                    
+                    # Преобразуем ссылку для Yandex.Disk
+                    if 'disk.yandex.ru/d/' in share_link:
+                        # Извлекаем хеш из ссылки
+                        hash_part = share_link.split('/')[-1]
+                        # Формируем прямую ссылку на скачивание
+                        download_link = f"https://disk.yandex.ru/d/{hash_part}"
+                        return download_link
+                    
+                    return share_link
             
             return None
 
