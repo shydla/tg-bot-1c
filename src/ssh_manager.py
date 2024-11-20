@@ -5,8 +5,12 @@ from typing import Optional, List
 from datetime import datetime
 
 class SSHManager:
+    # Словарь для отслеживания активных выгрузок (статический атрибут класса)
+    active_backups = {}
+
     def __init__(self, host: str, username: str, password: str, db_server: str, 
-                 db_user: str, db_pwd: str, user: str, user_pwd: str):
+                 db_user: str, db_pwd: str, user: str, user_pwd: str,
+                 rclone_remote: str, rclone_path: str):
         self.host = host
         self.username = username
         self.password = password
@@ -19,6 +23,12 @@ class SSHManager:
         self._platform_version = None
         self._platform_path = None
         self.backup_dir = "~/dump_1s_dt"
+        self.rclone_remote = rclone_remote
+        self.rclone_path = rclone_path
+
+    @classmethod
+    def is_backup_active(cls, db_name: str) -> bool:
+        return db_name in cls.active_backups
 
     async def connect(self):
         try:
@@ -117,15 +127,19 @@ class SSHManager:
             return []
 
     async def create_database_backup(self, db_name: str) -> Optional[str]:
+        if self.is_backup_active(db_name):
+            return None
+
         if not self._conn or not self.ibcmd_path:
             if not await self.connect():
                 return None
 
         try:
+            self.__class__.active_backups[db_name] = True
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = f"{self.backup_dir}/{db_name}_{timestamp}.dt"
             
-            # Формируем команду для ibcmd с параметрами из конфига
             command = [
                 self.ibcmd_path,
                 "infobase",
@@ -141,27 +155,29 @@ class SSHManager:
                 backup_path
             ]
             
-            # Объединяем команду в строку для выполнения через SSH
             dump_command = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in command)
             result = await self._conn.run(dump_command)
             
             if result.exit_status == 0:
-                # Проверяем, что файл действительно создан
                 check_result = await self._conn.run(f'test -f "{backup_path}" && echo "exists"')
                 if check_result.stdout.strip() == "exists":
-                    # Очищаем временную директорию с данными
                     await self._conn.run(f'rm -rf "{self.backup_dir}/data"')
-                    return backup_path
+                    
+                    # Загружаем файл в облако и получаем ссылку
+                    cloud_link = await self.upload_to_cloud(backup_path)
+                    return cloud_link
+
             return None
 
         except Exception as e:
             print(f"Error creating backup: {e}")
-            # В случае ошибки тоже пытаемся очистить временную директорию
             try:
                 await self._conn.run(f'rm -rf "{self.backup_dir}/data"')
             except:
                 pass
             return None
+        finally:
+            self.__class__.active_backups.pop(db_name, None)
 
     async def get_1c_server_version(self) -> Optional[str]:
         if not self._platform_version:
@@ -172,3 +188,30 @@ class SSHManager:
         if self._conn:
             self._conn.close()
             await self._conn.wait_closed()
+
+    async def upload_to_cloud(self, file_path: str) -> Optional[str]:
+        """Загружает файл в облако и возвращает ссылку для скачивания"""
+        try:
+            # Получаем имя файла из полного пути
+            file_name = file_path.split('/')[-1]
+            cloud_path = f"{self.rclone_remote}:{self.rclone_path}/{file_name}"
+            
+            # Загружаем файл в облако
+            command = f'rclone copy "{file_path}" "{cloud_path}"'
+            result = await self._conn.run(command)
+            
+            if result.exit_status == 0:
+                # Получаем публичную ссылку
+                link_command = f'rclone link "{cloud_path}"'
+                link_result = await self._conn.run(link_command)
+                
+                if link_result.exit_status == 0:
+                    # Удаляем локальный файл
+                    await self._conn.run(f'rm -f "{file_path}"')
+                    return link_result.stdout.strip()
+            
+            return None
+
+        except Exception as e:
+            print(f"Error uploading to cloud: {e}")
+            return None

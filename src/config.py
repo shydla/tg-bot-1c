@@ -17,6 +17,8 @@ class SSH:
     db_pwd: str
     user: str
     user_pwd: str
+    rclone_remote: str
+    rclone_path: str
 
 @dataclass
 class Config:
@@ -39,6 +41,8 @@ def load_config() -> Config:
             db_user=getenv("DB_USER", "postgres"),
             db_pwd=getenv("DB_PASSWORD", "postgres"),
             user=getenv("USER_1C", "Admin"),
-            user_pwd=getenv("USER_1C_PASSWORD", "123")
+            user_pwd=getenv("USER_1C_PASSWORD", "123"),
+            rclone_remote=getenv("RCLONE_REMOTE"),
+            rclone_path=getenv("RCLONE_PATH")
         )
     ) 

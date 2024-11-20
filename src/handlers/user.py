@@ -54,7 +54,7 @@ async def cmd_start(message: types.Message, db=None):
             await message.answer("Добро пожаловать! У вас есть доступ к боту.")
         elif user['status'] == 'blocked':
             reason = user['blocked_reason'] or 'Причина не указана'
-            await message.answer(f"Вы заблокированы.\nПричи��а: {reason}")
+            await message.answer(f"Вы заблокированы.\nПричина: {reason}")
         else:
             await message.answer("Ваша заявка находится на рассмотрении.")
 
@@ -79,7 +79,7 @@ async def process_callback(callback: types.CallbackQuery, db=None):
         )
     elif action == "block":
         await db.update_user_status(user_id, "blocked", "Заблокировано администратором")
-        await callback.bot.send_message(user_id, "Администра��ор отклонил вашу заявку.")
+        await callback.bot.send_message(user_id, "Администратор отклонил вашу заявку.")
         await callback.message.edit_text(
             f"{callback.message.text}\n\n❌ Заблокировано"
         )
@@ -141,7 +141,7 @@ async def cmd_pending(message: types.Message, db=None):
         await message.answer("У вас нет прав администратора!")
         return
 
-    # Получаем только пользовател��й в ожидании
+    # Получаем только пользовател в оидании
     users = await db.get_users_by_status('pending')
     
     if not users:
@@ -207,7 +207,9 @@ async def cmd_databases(message: types.Message, db=None):
         db_user=config.ssh.db_user,
         db_pwd=config.ssh.db_pwd,
         user=config.ssh.user,
-        user_pwd=config.ssh.user_pwd
+        user_pwd=config.ssh.user_pwd,
+        rclone_remote=config.ssh.rclone_remote,
+        rclone_path=config.ssh.rclone_path
     )
 
     try:
@@ -217,13 +219,26 @@ async def cmd_databases(message: types.Message, db=None):
             return
 
         markup = InlineKeyboardMarkup(row_width=1)
-        for db_name in databases:
-            markup.add(InlineKeyboardButton(
-                text=db_name,
-                callback_data=f"backup_{db_name}"
-            ))
+        active_backups_msg = []
 
-        await message.answer("Выберите базу для создания резервной копии:", reply_markup=markup)
+        for db_name in databases:
+            if SSHManager.is_backup_active(db_name):
+                markup.add(InlineKeyboardButton(
+                    text=f"🔄 {db_name} (выгрузка...)",
+                    callback_data="backup_in_progress"
+                ))
+                active_backups_msg.append(db_name)
+            else:
+                markup.add(InlineKeyboardButton(
+                    text=db_name,
+                    callback_data=f"backup_{db_name}"
+                ))
+
+        msg_text = "Выберите базу для создания резервной копии:"
+        if active_backups_msg:
+            msg_text += f"\n\n⚠️ Выгрузка уже идет для баз: {', '.join(active_backups_msg)}"
+
+        await message.answer(msg_text, reply_markup=markup)
 
     except Exception as e:
         await message.answer(f"Произошла ошибка при получении списка баз: {str(e)}")
@@ -231,6 +246,10 @@ async def cmd_databases(message: types.Message, db=None):
         await ssh.close()
 
 async def process_backup_callback(callback: types.CallbackQuery, db=None):
+    if callback.data == "backup_in_progress":
+        await callback.answer("Выгрузка этой базы уже идет!", show_alert=True)
+        return
+
     user = await db.get_user(callback.from_user.id)
     
     if not user or user['status'] != 'approved':
@@ -238,6 +257,11 @@ async def process_backup_callback(callback: types.CallbackQuery, db=None):
         return
 
     db_name = callback.data.split('_')[1]
+
+    if SSHManager.is_backup_active(db_name):
+        await callback.answer("Выгрузка этой базы уже идет!", show_alert=True)
+        return
+
     await callback.answer(f"Создаю резервную копию базы {db_name}...", show_alert=False)
 
     config = load_config()
@@ -249,21 +273,32 @@ async def process_backup_callback(callback: types.CallbackQuery, db=None):
         db_user=config.ssh.db_user,
         db_pwd=config.ssh.db_pwd,
         user=config.ssh.user,
-        user_pwd=config.ssh.user_pwd
+        user_pwd=config.ssh.user_pwd,
+        rclone_remote=config.ssh.rclone_remote,
+        rclone_path=config.ssh.rclone_path
     )
 
     try:
-        backup_path = await ssh.create_database_backup(db_name)
-        if backup_path:
-            await callback.message.answer(
-                f"✅ Резервная копия базы {db_name} создана успешно!\n"
-                f"Путь к файлу: {backup_path}"
+        # Удаляем сообщение со списком баз
+        await callback.message.delete()
+        
+        # Отправляем сообщение о начале процесса
+        status_message = await callback.message.answer(f"🔄 Начата выгрузка базы {db_name}...")
+        
+        cloud_link = await ssh.create_database_backup(db_name)
+        if cloud_link:
+            await status_message.edit_text(
+                f"✅ Резервная копия базы {db_name} создана и загружена в облако!\n"
+                f"Ссылка для скачивания: {cloud_link}"
             )
         else:
-            await callback.message.answer(f"❌ Не удалось создать резервную копию базы {db_name}")
+            await status_message.edit_text(
+                f"❌ Не удалось создать резервную копию базы {db_name} "
+                f"или загрузить её в облако"
+            )
 
     except Exception as e:
-        await callback.message.answer(f"Произошла ошибка при создании резервной копии: {str(e)}")
+        await callback.message.answer(f"Произошла ошибка: {str(e)}")
     finally:
         await ssh.close()
 
