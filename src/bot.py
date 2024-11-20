@@ -14,7 +14,6 @@ async def set_commands(bot: Bot, config):
     # Базовые команды для всех пользователей
     basic_commands = [
         types.BotCommand("start", "Запустить бота"),
-        types.BotCommand("version", "Получить версию 1С сервера"),
         types.BotCommand("databases", "Список баз данных")
     ]
     
@@ -23,7 +22,6 @@ async def set_commands(bot: Bot, config):
         types.BotCommand("start", "Запустить бота"),
         types.BotCommand("users", "Список всех пользователей"),
         types.BotCommand("pending", "Пользователи в ожидании"),
-        types.BotCommand("version", "Получить версию 1С сервера"),
         types.BotCommand("databases", "Список баз данных")
     ]
     

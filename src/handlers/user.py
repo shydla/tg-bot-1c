@@ -164,32 +164,6 @@ async def cmd_pending(message: types.Message, db=None):
             reply_markup=markup
         )
 
-async def cmd_version(message: types.Message, db=None):
-    user_id = message.from_user.id
-    user = await db.get_user(user_id)
-    
-    if not user or user['status'] != 'approved':
-        await message.answer("У вас нет доступа к этой команде.")
-        return
-
-    config = load_config()
-    ssh = SSHManager(
-        host=config.ssh.host,
-        username=config.ssh.username,
-        password=config.ssh.password
-    )
-
-    try:
-        version = await ssh.get_1c_server_version()
-        if version:
-            await message.answer(f"Версия 1С сервера: {version}")
-        else:
-            await message.answer("Не удалось определить версию 1С сервера")
-    except Exception as e:
-        await message.answer(f"Произошла ошибка при получении версии: {str(e)}")
-    finally:
-        await ssh.close()
-
 async def cmd_databases(message: types.Message, db=None):
     user_id = message.from_user.id
     user = await db.get_user(user_id)
@@ -309,7 +283,6 @@ def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(cmd_start, Command("start"))
     dp.register_message_handler(cmd_users, Command("users"))
     dp.register_message_handler(cmd_pending, Command("pending"))
-    dp.register_message_handler(cmd_version, Command("version"))
     dp.register_message_handler(cmd_databases, Command("databases"))
     dp.register_callback_query_handler(
         process_callback,
