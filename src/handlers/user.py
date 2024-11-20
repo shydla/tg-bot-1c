@@ -2,6 +2,7 @@ from aiogram import types, Dispatcher
 from aiogram.dispatcher.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import load_config
+from ssh_manager import SSHManager
 
 config = load_config()
 ADMIN_ID = int(config.tg_bot.admin_id)
@@ -53,7 +54,7 @@ async def cmd_start(message: types.Message, db=None):
             await message.answer("Добро пожаловать! У вас есть доступ к боту.")
         elif user['status'] == 'blocked':
             reason = user['blocked_reason'] or 'Причина не указана'
-            await message.answer(f"Вы заблокированы.\nПричина: {reason}")
+            await message.answer(f"Вы заблокированы.\nПричи��а: {reason}")
         else:
             await message.answer("Ваша заявка находится на рассмотрении.")
 
@@ -78,7 +79,7 @@ async def process_callback(callback: types.CallbackQuery, db=None):
         )
     elif action == "block":
         await db.update_user_status(user_id, "blocked", "Заблокировано администратором")
-        await callback.bot.send_message(user_id, "Администратор отклонил вашу заявку.")
+        await callback.bot.send_message(user_id, "Администра��ор отклонил вашу заявку.")
         await callback.message.edit_text(
             f"{callback.message.text}\n\n❌ Заблокировано"
         )
@@ -140,7 +141,7 @@ async def cmd_pending(message: types.Message, db=None):
         await message.answer("У вас нет прав администратора!")
         return
 
-    # Получаем только пользователей в ожидании
+    # Получаем только пользовател��й в ожидании
     users = await db.get_users_by_status('pending')
     
     if not users:
@@ -163,11 +164,120 @@ async def cmd_pending(message: types.Message, db=None):
             reply_markup=markup
         )
 
+async def cmd_version(message: types.Message, db=None):
+    user_id = message.from_user.id
+    user = await db.get_user(user_id)
+    
+    if not user or user['status'] != 'approved':
+        await message.answer("У вас нет доступа к этой команде.")
+        return
+
+    config = load_config()
+    ssh = SSHManager(
+        host=config.ssh.host,
+        username=config.ssh.username,
+        password=config.ssh.password
+    )
+
+    try:
+        version = await ssh.get_1c_server_version()
+        if version:
+            await message.answer(f"Версия 1С сервера: {version}")
+        else:
+            await message.answer("Не удалось определить версию 1С сервера")
+    except Exception as e:
+        await message.answer(f"Произошла ошибка при получении версии: {str(e)}")
+    finally:
+        await ssh.close()
+
+async def cmd_databases(message: types.Message, db=None):
+    user_id = message.from_user.id
+    user = await db.get_user(user_id)
+    
+    if not user or user['status'] != 'approved':
+        await message.answer("У вас нет доступа к этой команде.")
+        return
+
+    config = load_config()
+    ssh = SSHManager(
+        host=config.ssh.host,
+        username=config.ssh.username,
+        password=config.ssh.password,
+        db_server=config.ssh.db_server,
+        db_user=config.ssh.db_user,
+        db_pwd=config.ssh.db_pwd,
+        user=config.ssh.user,
+        user_pwd=config.ssh.user_pwd
+    )
+
+    try:
+        databases = await ssh.get_1c_databases()
+        if not databases:
+            await message.answer("Не удалось получить список баз данных")
+            return
+
+        markup = InlineKeyboardMarkup(row_width=1)
+        for db_name in databases:
+            markup.add(InlineKeyboardButton(
+                text=db_name,
+                callback_data=f"backup_{db_name}"
+            ))
+
+        await message.answer("Выберите базу для создания резервной копии:", reply_markup=markup)
+
+    except Exception as e:
+        await message.answer(f"Произошла ошибка при получении списка баз: {str(e)}")
+    finally:
+        await ssh.close()
+
+async def process_backup_callback(callback: types.CallbackQuery, db=None):
+    user = await db.get_user(callback.from_user.id)
+    
+    if not user or user['status'] != 'approved':
+        await callback.answer("У вас нет доступа к этой команде.", show_alert=True)
+        return
+
+    db_name = callback.data.split('_')[1]
+    await callback.answer(f"Создаю резервную копию базы {db_name}...", show_alert=False)
+
+    config = load_config()
+    ssh = SSHManager(
+        host=config.ssh.host,
+        username=config.ssh.username,
+        password=config.ssh.password,
+        db_server=config.ssh.db_server,
+        db_user=config.ssh.db_user,
+        db_pwd=config.ssh.db_pwd,
+        user=config.ssh.user,
+        user_pwd=config.ssh.user_pwd
+    )
+
+    try:
+        backup_path = await ssh.create_database_backup(db_name)
+        if backup_path:
+            await callback.message.answer(
+                f"✅ Резервная копия базы {db_name} создана успешно!\n"
+                f"Путь к файлу: {backup_path}"
+            )
+        else:
+            await callback.message.answer(f"❌ Не удалось создать резервную копию базы {db_name}")
+
+    except Exception as e:
+        await callback.message.answer(f"Произошла ошибка при создании резервной копии: {str(e)}")
+    finally:
+        await ssh.close()
+
 def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(cmd_start, Command("start"))
     dp.register_message_handler(cmd_users, Command("users"))
     dp.register_message_handler(cmd_pending, Command("pending"))
+    dp.register_message_handler(cmd_version, Command("version"))
+    dp.register_message_handler(cmd_databases, Command("databases"))
     dp.register_callback_query_handler(
         process_callback,
         lambda c: c.data.startswith(('approve_', 'block_'))
+    )
+    dp.register_callback_query_handler(
+        process_backup_callback,
+        lambda c: c.data.startswith('backup_')
     )

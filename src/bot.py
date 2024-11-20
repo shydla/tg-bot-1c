@@ -13,14 +13,18 @@ logger = logging.getLogger(__name__)
 async def set_commands(bot: Bot, config):
     # Базовые команды для всех пользователей
     basic_commands = [
-        types.BotCommand("start", "Запустить бота")
+        types.BotCommand("start", "Запустить бота"),
+        types.BotCommand("version", "Получить версию 1С сервера"),
+        types.BotCommand("databases", "Список баз данных")
     ]
     
     # Дополнительные команды для админа
     admin_commands = [
         types.BotCommand("start", "Запустить бота"),
         types.BotCommand("users", "Список всех пользователей"),
-        types.BotCommand("pending", "Пользователи в ожидании")
+        types.BotCommand("pending", "Пользователи в ожидании"),
+        types.BotCommand("version", "Получить версию 1С сервера"),
+        types.BotCommand("databases", "Список баз данных")
     ]
     
     # Установка обычных команд для всех пользователей
