@@ -68,11 +68,13 @@ sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin 
 ### Настройка Rclone
 
 1. Установите Rclone на сервер:
+
 ```bash
 curl https://rclone.org/install.sh | sudo bash
 ```
 
 2. Настройте подключение к Яндекс.Диску:
+
 ```bash
 rclone config
 # Выберите "n" для создания нового remote
@@ -84,18 +86,21 @@ rclone config
 ### Развертывание бота
 
 1. Клонируйте репозиторий:
+
 ```bash
 git clone https://github.com/shydla/1c-backup-bot.git
 cd 1c-backup-bot
 ```
 
 2. Создайте и настройте файл окружения:
+
 ```bash
 cp .env.example .env
 nano .env
 ```
 
 Пример содержимого `.env`:
+
 ```env
 # Bot settings
 BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz  # Получите у @BotFather
@@ -121,6 +126,7 @@ RCLONE_PATH=backup/1c  # Путь в облаке для сохранения б
 ```
 
 3. Соберите и запустите контейнеры:
+
 ```bash
 # Сборка и запуск
 docker-compose up -d --build
@@ -142,6 +148,7 @@ docker-compose logs -f bot
 ### Обновление бота
 
 Для обновления до последней версии:
+
 ```bash
 # Остановите контейнеры
 docker-compose down
@@ -155,7 +162,8 @@ docker-compose up -d --build
 
 ### Обслуживание
 
-#### Просмотр логов:
+#### Просмотр логов
+
 ```bash
 # Все логи
 docker-compose logs -f
@@ -164,12 +172,14 @@ docker-compose logs -f
 docker-compose logs -f bot
 ```
 
-#### Перезапуск бота:
+#### Перезапуск бота
+
 ```bash
 docker-compose restart bot
 ```
 
-#### Очистка неиспользуемых образов:
+#### Очистка неиспользуемых образов
+
 ```bash
 docker system prune -a
 ```
@@ -201,6 +211,7 @@ docker system prune -a
 ### Резервное копирование
 
 Рекомендуется регулярно создавать резервную копию файла базы данных бота:
+
 ```bash
 # Создание бэкапа базы бота
 docker-compose exec bot cp /app/bot.db /app/bot.db.backup
@@ -214,6 +225,7 @@ docker-compose exec bot cp /app/bot.db /app/bot.db.backup
 - `/pending` - Список ожидающих подтверждения (только для админа)
 
 ## Структура проекта
+
 ```
 1c-backup-bot/
 ├── src/
@@ -224,7 +236,6 @@ docker-compose exec bot cp /app/bot.db /app/bot.db.backup
 │   ├── handlers/
 │   │   ├── __init__.py
 │   │   └── user.py
-│   └── middlewares/
 │       ├── __init__.py
 │       └── database.py
 ├── docker-compose.yml
@@ -253,4 +264,3 @@ shydla <shydla@gmail.com>
 ## Поддержка
 
 Если у вас возникли проблемы или есть предложения по улучшению, создайте Issue в репозитории.
-
