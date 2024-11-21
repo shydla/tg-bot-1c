@@ -62,7 +62,7 @@ rclone config
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/yourusername/1c-backup-bot.git
+git clone https://github.com/shydla/1c-backup-bot.git
 cd 1c-backup-bot
 ```
 
@@ -217,7 +217,7 @@ MIT
 
 ## Автор
 
-Your Name <shydla@gmail.com>
+shydla <shydla@gmail.com>
 
 ## Вклад в проект
 
