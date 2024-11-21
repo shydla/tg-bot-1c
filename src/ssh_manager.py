@@ -100,25 +100,66 @@ class SSHManager:
             return f"{self._platform_path}/ibcmd"
         return None
 
-    async def get_1c_databases(self) -> List[str]:
+    async def get_1c_databases(self) -> List[dict]:
         if not self._conn or not self.rac_path:
             if not await self.connect():
                 return []
 
         try:
-            # Получаем список кластеров
+            # Сначала получаем список кластеров
             result = await self._conn.run(f'{self.rac_path} cluster list')
-            cluster_id = result.stdout.split()[2]  # Берем первый кластер
+            if result.exit_status != 0:
+                print(f"Error getting clusters: {result.stderr}")
+                return []
 
-            # Получаем список информационных баз
+            # Ищем ID кластера в выводе
+            clusters = result.stdout.strip().split('\n')
+            if not clusters:
+                print("No clusters found")
+                return []
+
+            # Берем первый кластер и извлекаем его ID
+            cluster_info = clusters[0].split(':')
+            if len(cluster_info) < 2:
+                print(f"Invalid cluster info: {clusters[0]}")
+                return []
+
+            cluster_id = cluster_info[1].strip()
+
+            # Получаем список информационных баз для найденного кластера
             result = await self._conn.run(f'{self.rac_path} infobase --cluster={cluster_id} summary list')
-            
-            # Парсим вывод, ищем имена баз
+            if result.exit_status != 0:
+                print(f"Error getting databases: {result.stderr}")
+                return []
+
+            # Парсим вывод, ищем имена баз и их описания
             databases = []
+            current_db = {}
+            
             for line in result.stdout.splitlines():
-                if 'name' in line.lower():
-                    db_name = line.split(':')[1].strip()
-                    databases.append(db_name)
+                line = line.strip()
+                if not line:
+                    if current_db:
+                        databases.append(current_db)
+                        current_db = {}
+                    continue
+                
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip().lower()
+                    value = value.strip()
+                    
+                    if 'name' in key:
+                        current_db['name'] = value
+                    elif 'descr' in key:
+                        current_db['descr'] = value
+            
+            # Добавляем последнюю базу, если она есть
+            if current_db:
+                databases.append(current_db)
+            
+            # Добавляем отладочную информацию
+            print(f"Found databases: {databases}")
             
             return databases
 

@@ -14,7 +14,7 @@ async def set_commands(bot: Bot, config):
     # Базовые команды для всех пользователей
     basic_commands = [
         types.BotCommand("start", "Запустить бота"),
-        types.BotCommand("databases", "Список баз данных")
+        types.BotCommand("backup", "Создать резервную копию базы")
     ]
     
     # Дополнительные команды для админа
@@ -22,7 +22,7 @@ async def set_commands(bot: Bot, config):
         types.BotCommand("start", "Запустить бота"),
         types.BotCommand("users", "Список всех пользователей"),
         types.BotCommand("pending", "Пользователи в ожидании"),
-        types.BotCommand("databases", "Список баз данных")
+        types.BotCommand("backup", "Создать резервную копию базы")
     ]
     
     # Установка обычных команд для всех пользователей

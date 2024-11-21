@@ -195,20 +195,35 @@ async def cmd_databases(message: types.Message, db=None):
         markup = InlineKeyboardMarkup(row_width=1)
         active_backups_msg = []
 
-        for db_name in databases:
+        # Добавляем кнопки для баз данных
+        for db_info in databases:
+            db_name = db_info['name']
+            db_descr = db_info.get('descr', 'Без описания')
+            
+            # Формируем текст кнопки
+            button_text = f"💾 {db_name}  - "
+            if db_descr:
+                button_text += f"📝 ({db_descr})"
+
             if SSHManager.is_backup_active(db_name):
                 markup.add(InlineKeyboardButton(
-                    text=f"🔄 {db_name} (выгрузка...)",
+                    text=f"🔄 {button_text} (выгрузка...)",
                     callback_data="backup_in_progress"
                 ))
                 active_backups_msg.append(db_name)
             else:
                 markup.add(InlineKeyboardButton(
-                    text=db_name,
+                    text=button_text,
                     callback_data=f"backup_{db_name}"
                 ))
 
-        msg_text = "Выберите базу для создания резервной копии:"
+        # Добавляем кнопку отмены
+        markup.add(InlineKeyboardButton(
+            text="❌ Отмена",
+            callback_data="backup_cancel"
+        ))
+
+        msg_text = "📋 Выберите базу для создания резервной копии:"
         if active_backups_msg:
             msg_text += f"\n\n⚠️ Выгрузка уже идет для баз: {', '.join(active_backups_msg)}"
 
@@ -220,6 +235,12 @@ async def cmd_databases(message: types.Message, db=None):
         await ssh.close()
 
 async def process_backup_callback(callback: types.CallbackQuery, db=None):
+    # Обработка кнопки отмены
+    if callback.data == "backup_cancel":
+        await callback.message.delete()
+        await callback.answer("Операция отменена")
+        return
+
     if callback.data == "backup_in_progress":
         await callback.answer("Выгрузка этой базы уже идет!", show_alert=True)
         return
@@ -283,7 +304,7 @@ def register_user_handlers(dp: Dispatcher):
     dp.register_message_handler(cmd_start, Command("start"))
     dp.register_message_handler(cmd_users, Command("users"))
     dp.register_message_handler(cmd_pending, Command("pending"))
-    dp.register_message_handler(cmd_databases, Command("databases"))
+    dp.register_message_handler(cmd_databases, Command("backup"))
     dp.register_callback_query_handler(
         process_callback,
         lambda c: c.data.startswith(('approve_', 'block_'))
