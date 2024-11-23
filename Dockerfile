@@ -15,9 +15,6 @@ COPY requirements.txt .
 # Устанавливаем зависимости напрямую через pip
 RUN pip install -r requirements.txt
 
-# Копируем .env файл
-COPY .env .
-
 # Копируем код приложения
 COPY . .
 

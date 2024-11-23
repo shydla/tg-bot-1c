@@ -9,6 +9,18 @@ services:
       - ./data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_ID=${ADMIN_ID}
+      - SSH_HOST=${SSH_HOST}
+      - SSH_USERNAME=${SSH_USERNAME}
+      - SSH_PASSWORD=${SSH_PASSWORD}
+      - DB_SERVER=${DB_SERVER}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - USER_1C=${USER_1C}
+      - USER_1C_PASSWORD=${USER_1C_PASSWORD}
+      - RCLONE_REMOTE=${RCLONE_REMOTE}
+      - RCLONE_PATH=${RCLONE_PATH}
     deploy:
       resources:
         limits:
