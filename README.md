@@ -89,7 +89,7 @@ rclone config
 
 ```bash
 git clone https://github.com/shydla/1c-backup-bot.git
-cd 1c-backup-bot
+cd tg-bot-1c
 ```
 
 2. Создайте и настройте файл окружения:
