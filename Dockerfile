@@ -6,18 +6,17 @@ RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем poetry
-RUN pip install poetry
-
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
 # Копируем файлы зависимостей
-COPY pyproject.toml poetry.lock ./
+COPY requirements.txt .
 
-# Настраиваем poetry для работы в Docker
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
+# Устанавливаем зависимости напрямую через pip
+RUN pip install -r requirements.txt
+
+# Копируем .env файл
+COPY .env .
 
 # Копируем код приложения
 COPY . .

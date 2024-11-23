@@ -6,7 +6,7 @@ services:
     container_name: tg_bot
     restart: always
     volumes:
-      - .env:/app/.env
+      - ./data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
     deploy:

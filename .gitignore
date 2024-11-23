@@ -38,4 +38,5 @@ ENV/
 bot.db
 *.db
 *.db-journal
-*.log 
+*.log
+data/

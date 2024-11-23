@@ -2,7 +2,7 @@ import aiosqlite
 from typing import List, Optional
 
 class Database:
-    def __init__(self, db_path: str = "bot.db"):
+    def __init__(self, db_path: str = "data/bot.db"):
         self.db_path = db_path
 
     async def create_tables(self):
